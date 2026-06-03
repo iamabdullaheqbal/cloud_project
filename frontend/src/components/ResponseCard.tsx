@@ -1,6 +1,8 @@
 "use client";
 
 import { ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ResponseCardProps {
   title: string;
@@ -24,7 +26,7 @@ export default function ResponseCard({ title, icon, accentColor, response, isLoa
       </div>
 
       {/* Body */}
-      <div className="flex-1 px-4 py-3">
+      <div className="flex-1 px-4 py-4">
         {isLoading ? (
           <div className="space-y-2 py-1">
             {[95, 80, 90, 65, 75].map((w, i) => (
@@ -32,9 +34,11 @@ export default function ResponseCard({ title, icon, accentColor, response, isLoa
             ))}
           </div>
         ) : (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-primary)" }}>
-            {response || "No response available."}
-          </p>
+          <div className="md-body">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {response || "No response available."}
+            </ReactMarkdown>
+          </div>
         )}
       </div>
 
