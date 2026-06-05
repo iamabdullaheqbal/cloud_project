@@ -178,9 +178,9 @@ async def chat(
 
         await db.commit()
         await db.refresh(msg)
-    except Exception:
+    except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to save message to database")
+        raise HTTPException(status_code=500, detail=f"DB error: {type(e).__name__}: {e}")
 
     return {
         "message": _msg_dict(msg),
