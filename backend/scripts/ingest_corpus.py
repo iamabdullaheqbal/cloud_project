@@ -133,6 +133,26 @@ def find_corpus_file(arg: str | None) -> str:
     sys.exit(1)
 
 
+async def get_embedding_with_retry(text: str, max_retries: int = 5) -> list[float]:
+    """Call get_embedding with exponential backoff on 503/transient errors."""
+    import asyncio as _asyncio
+    delay = 5
+    for attempt in range(1, max_retries + 1):
+        try:
+            return await get_embedding(text)
+        except Exception as e:
+            msg = str(e)
+            if attempt == max_retries:
+                raise
+            # Retry on 503, 429 (rate limit), or any network/server error
+            if any(code in msg for code in ("503", "429", "500", "502", "timeout", "connection")):
+                print(f"  Attempt {attempt} failed ({msg[:80]}). Retrying in {delay}s...")
+                await _asyncio.sleep(delay)
+                delay = min(delay * 2, 60)  # cap at 60s
+            else:
+                raise
+
+
 async def ingest(path: str):
     ext = os.path.splitext(path)[1].lower()
     print(f"Reading corpus from: {path}")
@@ -160,7 +180,7 @@ async def ingest(path: str):
 
         for i, item in enumerate(rows, 1):
             print(f"[{i:>2}/{len(rows)}] {item['category']:<30} | {item['question'][:60]}...")
-            embedding = await get_embedding(item["question"])
+            embedding = await get_embedding_with_retry(item["question"])
             session.add(CorpusChunk(
                 question=item["question"],
                 answer=item["answer"],
@@ -169,6 +189,8 @@ async def ingest(path: str):
                 source=item["source"],
                 embedding=embedding,
             ))
+            # Flush every chunk so progress survives a mid-run failure
+            await session.flush()
 
         await session.commit()
         print(f"\nDone. {len(rows)} corpus chunks ingested successfully.")
