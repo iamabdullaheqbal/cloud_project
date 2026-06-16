@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { Send, Loader2, Sparkles, Database, ArrowUp } from "lucide-react";
+import { Loader2, Sparkles, Database, ArrowUp, BookOpenText, ShieldCheck } from "lucide-react";
 import ResponseCard from "./ResponseCard";
-import type { Message, MistralParams } from "@/types";
+import type { Message } from "@/types";
 
 const SUGGESTED = [
   "How does financial stress affect student mental health?",
@@ -27,13 +27,12 @@ function Badge({ children, color }: { children: React.ReactNode; color?: string 
 interface Props {
   conversationId: number | null;
   messages: Message[];
-  params: MistralParams;
   isLoading: boolean;
   onSend: (query: string) => Promise<void>;
   error: string | null;
 }
 
-export default function ChatPanel({ conversationId, messages, params, isLoading, onSend, error }: Props) {
+export default function ChatPanel({ conversationId, messages, isLoading, onSend, error }: Props) {
   const [query, setQuery] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,7 +95,7 @@ export default function ChatPanel({ conversationId, messages, params, isLoading,
             </div>
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto px-6 py-6 space-y-8">
+          <div className="max-w-7xl mx-auto px-6 py-6 space-y-8">
             {messages.map(msg => (
               <div key={msg.id} className="fade-in">
                 {/* User bubble */}
@@ -115,9 +114,9 @@ export default function ChatPanel({ conversationId, messages, params, isLoading,
                 </div>
 
                 {/* Response cards */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                <div className="grid grid-cols-[repeat(4,minmax(260px,1fr))] gap-3 overflow-x-auto pb-2">
                   <ResponseCard
-                    title="Mistral AI"
+                    title="S0 Mistral AI"
                     accentColor="var(--accent)"
                     icon={<Sparkles size={14} />}
                     response={msg.mistral_response || ""}
@@ -143,6 +142,33 @@ export default function ChatPanel({ conversationId, messages, params, isLoading,
                       </>
                     }
                   />
+                  <ResponseCard
+                    title="S1 Basic RAG"
+                    accentColor="#7c3aed"
+                    icon={<BookOpenText size={14} />}
+                    response={msg.s1_response || "No S1 response available."}
+                    isLoading={false}
+                    meta={
+                      <>
+                        {msg.s1_latency_ms != null && <Badge color="#7c3aed">{msg.s1_latency_ms}ms</Badge>}
+                        <Badge>Retrieved corpus grounded</Badge>
+                      </>
+                    }
+                  />
+                  <ResponseCard
+                    title="S2 Safety-aware RAG"
+                    accentColor="#dc2626"
+                    icon={<ShieldCheck size={14} />}
+                    response={msg.s2_response || "No S2 response available."}
+                    isLoading={false}
+                    meta={
+                      <>
+                        {msg.s2_latency_ms != null && <Badge color="#dc2626">{msg.s2_latency_ms}ms</Badge>}
+                        {msg.s2_risk_label && <Badge color="#dc2626">{msg.s2_risk_label}</Badge>}
+                        <Badge>Safety routed</Badge>
+                      </>
+                    }
+                  />
                 </div>
               </div>
             ))}
@@ -154,9 +180,11 @@ export default function ChatPanel({ conversationId, messages, params, isLoading,
                     <p className="text-sm" style={{ color: "var(--text-muted)" }}>Thinking…</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                  <ResponseCard title="Mistral AI" accentColor="var(--accent)" icon={<Sparkles size={14} />} response="" isLoading />
+                <div className="grid grid-cols-[repeat(4,minmax(260px,1fr))] gap-3 overflow-x-auto pb-2">
+                  <ResponseCard title="S0 Mistral AI" accentColor="var(--accent)" icon={<Sparkles size={14} />} response="" isLoading />
                   <ResponseCard title="Research Corpus" accentColor="var(--accent-blue)" icon={<Database size={14} />} response="" isLoading />
+                  <ResponseCard title="S1 Basic RAG" accentColor="#7c3aed" icon={<BookOpenText size={14} />} response="" isLoading />
+                  <ResponseCard title="S2 Safety-aware RAG" accentColor="#dc2626" icon={<ShieldCheck size={14} />} response="" isLoading />
                 </div>
               </div>
             )}

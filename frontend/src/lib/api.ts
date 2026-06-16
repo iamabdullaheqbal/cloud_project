@@ -4,6 +4,8 @@ import type {
   MistralParams,
   MistralResponseData,
   CorpusResponseData,
+  RagResponseData,
+  SafetyRagResponseData,
 } from "@/types";
 
 const BASE =
@@ -65,6 +67,8 @@ export async function sendChat(
   message: Message;
   mistral: MistralResponseData;
   corpus: CorpusResponseData;
+  s1: RagResponseData;
+  s2: SafetyRagResponseData;
 }> {
   return request(`/api/conversations/${conversationId}/chat`, {
     method: "POST",

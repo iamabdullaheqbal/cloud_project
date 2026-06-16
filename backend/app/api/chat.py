@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.db.database import get_db, AsyncSessionLocal
 from app.db.models import Conversation, Message
-from app.services.mistral_service import get_mistral_response
+from app.services.mistral_service import (
+    get_basic_rag_response,
+    get_mistral_response,
+    get_safety_aware_rag_response,
+)
 from app.services.corpus_service import search_corpus
 
 router = APIRouter(prefix="/api")
@@ -129,6 +133,85 @@ async def _corpus_in_own_session(query: str) -> dict:
         return await search_corpus(query, session)
 
 
+def classify_risk(query: str) -> str:
+    """Lightweight project risk classifier for S2 routing."""
+    q = query.lower()
+
+    crisis_terms = [
+        "kill myself",
+        "suicide",
+        "end my life",
+        "harm myself",
+        "hurt myself",
+        "self-harm",
+        "self harm",
+        "i might die",
+        "want to die",
+        "violence",
+        "hurt someone",
+    ]
+    medical_terms = [
+        "diagnose",
+        "diagnosis",
+        "depression",
+        "anxiety disorder",
+        "medicine",
+        "medication",
+        "pills",
+        "doctor prescribe",
+        "clinical treatment",
+        "mental illness",
+    ]
+    distress_terms = [
+        "hopeless",
+        "can't handle",
+        "cannot handle",
+        "overwhelmed",
+        "breaking down",
+        "panic",
+        "nothing matters",
+        "no way out",
+    ]
+    stress_terms = [
+        "stressed",
+        "stress",
+        "worried",
+        "nervous",
+        "pressure",
+        "anxious",
+        "scared",
+    ]
+    student_support_terms = [
+        "fee",
+        "fees",
+        "tuition",
+        "loan",
+        "scholarship",
+        "budget",
+        "financial",
+        "money",
+        "rent",
+        "study",
+        "university",
+        "college",
+        "exam",
+        "assignment",
+        "campus",
+    ]
+
+    if any(term in q for term in crisis_terms):
+        return "L3_CRISIS"
+    if any(term in q for term in medical_terms):
+        return "L4_MEDICAL"
+    if any(term in q for term in distress_terms):
+        return "L2_DISTRESS"
+    if any(term in q for term in stress_terms):
+        return "L1_STRESS"
+    if any(term in q for term in student_support_terms):
+        return "L0_NORMAL"
+    return "L5_OUT_OF_SCOPE"
+
+
 @router.post("/conversations/{conversation_id}/chat")
 async def chat(
     conversation_id: int,
@@ -147,10 +230,30 @@ async def chat(
     )
     existing_count = count_result.scalar_one()
 
-    # Fire Mistral and corpus concurrently — corpus uses its own session
+    # Fire S0 and corpus retrieval concurrently — corpus uses its own session.
     (mistral_text, mistral_latency), corpus_result = await asyncio.gather(
         get_mistral_response(body.query, body.temperature, body.top_p, body.max_tokens),
         _corpus_in_own_session(body.query),
+    )
+    risk_label = classify_risk(body.query)
+
+    # S1 and S2 both depend on retrieved corpus context.
+    (s1_text, s1_latency), (s2_text, s2_latency) = await asyncio.gather(
+        get_basic_rag_response(
+            body.query,
+            corpus_result,
+            body.temperature,
+            body.top_p,
+            body.max_tokens,
+        ),
+        get_safety_aware_rag_response(
+            body.query,
+            corpus_result,
+            risk_label,
+            body.temperature,
+            body.top_p,
+            body.max_tokens,
+        ),
     )
 
     # Persist message and update conversation in one transaction
@@ -160,12 +263,17 @@ async def chat(
             query=body.query,
             mistral_response=mistral_text,
             corpus_response=corpus_result.get("response"),
+            s1_response=s1_text,
+            s2_response=s2_text,
             corpus_question_matched=corpus_result.get("matched_question"),
             corpus_category=corpus_result.get("category"),
             corpus_source=corpus_result.get("source"),
             similarity_score=corpus_result.get("similarity"),
             mistral_latency_ms=mistral_latency,
             corpus_latency_ms=corpus_result.get("latency_ms"),
+            s1_latency_ms=s1_latency,
+            s2_latency_ms=s2_latency,
+            s2_risk_label=risk_label,
             temperature=body.temperature,
             top_p=body.top_p,
             max_tokens=body.max_tokens,
@@ -187,7 +295,7 @@ async def chat(
         "mistral": {
             "response": mistral_text,
             "latency_ms": mistral_latency,
-            "source": "Mistral AI (mistral-small-latest)",
+            "source": "S0: Mistral AI (mistral-small-latest)",
         },
         "corpus": {
             "response": corpus_result.get("response"),
@@ -198,6 +306,17 @@ async def chat(
             "similarity": corpus_result.get("similarity"),
             "latency_ms": corpus_result.get("latency_ms"),
             "found": corpus_result.get("found", False),
+        },
+        "s1": {
+            "response": s1_text,
+            "latency_ms": s1_latency,
+            "source": "S1: Basic RAG",
+        },
+        "s2": {
+            "response": s2_text,
+            "latency_ms": s2_latency,
+            "risk_label": risk_label,
+            "source": "S2: Safety-aware RAG",
         },
     }
 
@@ -211,12 +330,17 @@ def _msg_dict(m: Message) -> dict:
         "query": m.query,
         "mistral_response": m.mistral_response,
         "corpus_response": m.corpus_response,
+        "s1_response": m.s1_response,
+        "s2_response": m.s2_response,
         "corpus_question_matched": m.corpus_question_matched,
         "corpus_category": m.corpus_category,
         "corpus_source": m.corpus_source,
         "similarity_score": m.similarity_score,
         "mistral_latency_ms": m.mistral_latency_ms,
         "corpus_latency_ms": m.corpus_latency_ms,
+        "s1_latency_ms": m.s1_latency_ms,
+        "s2_latency_ms": m.s2_latency_ms,
+        "s2_risk_label": m.s2_risk_label,
         "temperature": m.temperature,
         "top_p": m.top_p,
         "max_tokens": m.max_tokens,

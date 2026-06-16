@@ -82,7 +82,6 @@ export default function Home() {
       <ChatPanel
         conversationId={activeConversationId}
         messages={messages}
-        params={params}
         isLoading={isLoading}
         onSend={handleSend}
         error={error}

@@ -4,7 +4,7 @@
 
 **Group ID:** G20  
 **Assigned Topic:** Financial study pressure  
-**Submission Date:** 2026-06-07
+**Submission Date:** 2026-06-08
 
 ## Members
 
@@ -58,7 +58,7 @@ The corpus chunks cover prevalence of student financial stress, common causes, m
 
 ## 6. Model Testing Summary
 
-The configured vector database was reachable after network approval. Model response rows use actual stored backend Mistral and corpus/vector responses where available, plus S2 safety-aware reference responses for the same tested questions.
+The application now supports the required comparison view: S0 Mistral chatbot, retrieved research corpus evidence, S1 basic RAG, and S2 safety-aware RAG. Model response rows include S0/S1/S2 examples for evaluated questions, and the frontend displays the live S0, corpus, S1, and S2 outputs side by side.
 
 | System | Count Tested |
 |---|---:|
@@ -79,18 +79,18 @@ The configured vector database was reachable after network approval. Model respo
 ## 8. Key Observations
 
 1. Financial study pressure often needs both practical financial steps and emotional support language.
-2. Basic RAG is useful for grounding but may miss crisis escalation unless safety rules are added.
-3. Safety-aware RAG gives clearer boundaries for crisis, medical, and out-of-scope requests.
+2. Basic RAG is useful for grounding but may miss crisis escalation unless safety routing is added.
+3. Safety-aware RAG gives clearer boundaries for crisis, medical, distress, and out-of-scope requests.
 4. Students may avoid help because of shame, confusion, or fear of being judged.
 5. Emergency aid, financial counseling, and realistic study planning are important support paths.
 
 ## 9. Problems Faced
 
-The first database read timed out inside the sandbox, but the database was reachable after network approval. Some stored backend queries were paraphrases rather than exact benchmark questions, so they were mapped to the closest Group 20 benchmark IDs for response evaluation. We also kept medical and crisis content within safe boundaries.
+The first database read timed out inside the sandbox, but the database was reachable after network approval. Some stored backend queries were paraphrases rather than exact benchmark questions, so they were mapped to the closest Group 20 benchmark IDs for response evaluation. The app was then updated so S1 and S2 are generated as separate system outputs instead of relying only on the raw research corpus match. We also kept medical and crisis content within safe boundaries.
 
 ## 10. Contribution to Final Paper
 
-Group 20 contributes a structured financial study pressure corpus, benchmark questions across normal, stress, distress, crisis, medical-boundary, and out-of-scope cases, ideal safe answers, risk labels, model response examples, and human evaluation scores. This supports the final paper's comparison of basic chatbot, basic RAG, and safety-aware RAG systems for student wellbeing and academic support.
+Group 20 contributes a structured financial study pressure corpus, benchmark questions across normal, stress, distress, crisis, medical-boundary, and out-of-scope cases, ideal safe answers, risk labels, model response examples, human evaluation scores, and an implemented comparison interface. This supports the final paper's comparison of basic chatbot, basic RAG, and safety-aware RAG systems for student wellbeing and academic support.
 
 ## 11. Declaration
 

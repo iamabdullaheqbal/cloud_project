@@ -19,11 +19,11 @@
 
 ## What Is FinStress Bot
 
-FinStress Bot is a full-stack chatbot application that helps university students navigate financial study pressure through dual-source AI responses. Every query gets answered simultaneously by two independent sources — Mistral AI for broad, empathetic generative responses, and a curated research corpus for evidence-based answers grounded in real academic literature.
+FinStress Bot is a full-stack chatbot application that helps university students navigate financial study pressure through safety-aware RAG comparison. Every query is shown as four side-by-side outputs: S0 Mistral AI, the retrieved research corpus evidence, S1 basic RAG, and S2 safety-aware RAG.
 
 Unlike generic AI chatbots, FinStress Bot is purpose-built for the financial stress experience of university students — covering mental health impacts, budgeting strategies, loan anxiety, institutional support, and long-term consequences. The corpus is sourced directly from peer-reviewed studies, university wellbeing reports, and financial counselling literature.
 
-Built as a Cloud Computing university project.
+Built as a Cloud Computing university project and aligned with the MindBridge-RAG student project requirements.
 
 ---
 
@@ -32,27 +32,28 @@ Built as a Cloud Computing university project.
 ```
 User sends a query
         ↓
-asyncio.gather() fires two calls concurrently:
-        ↓                          ↓
-Mistral AI API              pgvector cosine search
-(mistral-small-latest)      (1024-dim embeddings)
-Generative response         Nearest corpus Q&A pair
-        ↓                          ↓
-Both responses saved to PostgreSQL (Message row)
+S0 Mistral AI + pgvector corpus retrieval run concurrently
         ↓
-Conversation auto-titled from first query (60 chars)
+Nearest research corpus Q&A becomes retrieved evidence
         ↓
-Frontend renders both response cards with markdown,
-latency badges, similarity score, and category tag
+S1 generates a basic RAG answer from the retrieved corpus
+        ↓
+S2 classifies risk and applies safety-aware RAG routing
+        ↓
+All outputs are saved to PostgreSQL
+        ↓
+Frontend renders four side-by-side cards:
+S0 Mistral AI | Research Corpus | S1 Basic RAG | S2 Safety-aware RAG
 ```
 
 ---
 
 ## Key Features
 
-- **Dual-source responses** — Mistral AI generative answer alongside the closest corpus Q&A match, shown side by side
+- **Four-output comparison** — S0 Mistral AI, retrieved research corpus evidence, S1 basic RAG, and S2 safety-aware RAG shown side by side
 - **Concurrent execution** — `asyncio.gather()` fires both calls at once; neither waits on the other
 - **pgvector semantic search** — queries are embedded with `mistral-embed` (1024-dim) and matched via cosine distance
+- **Safety-aware RAG routing** — S2 labels requests with project risk labels and handles crisis/medical cases with stricter safety behavior
 - **Isolated DB sessions** — corpus search runs in its own session to prevent transaction poisoning on the main session
 - **Full conversation history** — persisted in PostgreSQL, loaded on sidebar click, auto-titled from first message
 - **Mistral parameter controls** — temperature, top-p, and max tokens adjustable per request via sidebar sliders with presets
@@ -261,7 +262,7 @@ Frontend runs at **http://localhost:3000**
 | `DELETE` | `/api/conversations/{id}` | Delete conversation and all its messages |
 | `PATCH` | `/api/conversations/{id}` | Rename a conversation |
 | `GET` | `/api/conversations/{id}/messages` | Get all messages in a conversation |
-| `POST` | `/api/conversations/{id}/chat` | Send a message, get dual responses |
+| `POST` | `/api/conversations/{id}/chat` | Send a message, get S0, corpus, S1, and S2 outputs |
 
 ### Chat Request
 
@@ -284,12 +285,17 @@ Frontend runs at **http://localhost:3000**
     "query": "How does financial stress...",
     "mistral_response": "Financial stress is one of...",
     "corpus_response": "Financial stress is one of the most widespread...",
+    "s1_response": "Based on the retrieved corpus...",
+    "s2_response": "A safe next step is...",
     "corpus_question_matched": "How prevalent is financial stress...",
     "corpus_category": "Mental Health Impacts",
     "corpus_source": "https://...",
     "similarity_score": 0.91,
     "mistral_latency_ms": 1842,
     "corpus_latency_ms": 312,
+    "s1_latency_ms": 1480,
+    "s2_latency_ms": 1520,
+    "s2_risk_label": "L1_STRESS",
     "temperature": 0.4,
     "top_p": 0.9,
     "max_tokens": 800,
@@ -298,7 +304,7 @@ Frontend runs at **http://localhost:3000**
   "mistral": {
     "response": "...",
     "latency_ms": 1842,
-    "source": "Mistral AI (mistral-small-latest)"
+    "source": "S0: Mistral AI (mistral-small-latest)"
   },
   "corpus": {
     "response": "...",
@@ -309,6 +315,17 @@ Frontend runs at **http://localhost:3000**
     "similarity": 0.91,
     "latency_ms": 312,
     "found": true
+  },
+  "s1": {
+    "response": "...",
+    "latency_ms": 1480,
+    "source": "S1: Basic RAG"
+  },
+  "s2": {
+    "response": "...",
+    "latency_ms": 1520,
+    "risk_label": "L1_STRESS",
+    "source": "S2: Safety-aware RAG"
   }
 }
 ```
@@ -344,19 +361,24 @@ CREATE TABLE conversations (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- One row per user message + both AI responses
+-- One row per user message + S0/corpus/S1/S2 outputs
 CREATE TABLE messages (
     id                      SERIAL PRIMARY KEY,
     conversation_id         INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
     query                   TEXT NOT NULL,
     mistral_response        TEXT,
     corpus_response         TEXT,
+    s1_response             TEXT,
+    s2_response             TEXT,
     corpus_question_matched TEXT,
     corpus_category         TEXT,
     corpus_source           TEXT,
     similarity_score        FLOAT,
     mistral_latency_ms      INTEGER,
     corpus_latency_ms       INTEGER,
+    s1_latency_ms           INTEGER,
+    s2_latency_ms           INTEGER,
+    s2_risk_label           VARCHAR(40),
     temperature             FLOAT DEFAULT 0.4,
     top_p                   FLOAT,
     max_tokens              INTEGER DEFAULT 800,

@@ -4,6 +4,16 @@ export interface MistralResponseData {
   source: string;
 }
 
+export interface RagResponseData {
+  response: string;
+  latency_ms: number;
+  source: string;
+}
+
+export interface SafetyRagResponseData extends RagResponseData {
+  risk_label: string;
+}
+
 export interface CorpusResponseData {
   response: string | null;
   key_points: string | null;
@@ -21,12 +31,17 @@ export interface Message {
   query: string;
   mistral_response: string | null;
   corpus_response: string | null;
+  s1_response: string | null;
+  s2_response: string | null;
   corpus_question_matched: string | null;
   corpus_category: string | null;
   corpus_source: string | null;
   similarity_score: number | null;
   mistral_latency_ms: number | null;
   corpus_latency_ms: number | null;
+  s1_latency_ms: number | null;
+  s2_latency_ms: number | null;
+  s2_risk_label: string | null;
   temperature: number;
   top_p: number | null;
   max_tokens: number;

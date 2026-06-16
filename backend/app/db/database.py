@@ -30,3 +30,18 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS s1_response TEXT")
+        )
+        await conn.execute(
+            text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS s2_response TEXT")
+        )
+        await conn.execute(
+            text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS s1_latency_ms INTEGER")
+        )
+        await conn.execute(
+            text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS s2_latency_ms INTEGER")
+        )
+        await conn.execute(
+            text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS s2_risk_label VARCHAR(40)")
+        )
